@@ -1,0 +1,66 @@
+services:
+  # ===== BASE DE DATOS =====
+  db:
+    image: mysql:8.0
+    container_name: xlflow_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      TZ: America/Argentina/Buenos_Aires
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3308:3306"
+    networks:
+      - xlflow_net
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      timeout: 10s
+      retries: 10
+      interval: 10s
+
+  # ===== BACKEND =====
+  backend:
+    build:
+      context: ./Esflowix_back
+      dockerfile: Dockerfile
+    container_name: xlflow_backend
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=America/Argentina/Buenos_Aires&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: America/Argentina/Buenos_Aires
+    ports:
+      - "8083:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - xlflow_net
+    mem_limit: 384m
+
+  # ===== FRONTEND =====
+  frontend:
+    build:
+      context: ./Esflowix_front
+      dockerfile: Dockerfile
+    container_name: xlflow_frontend
+    restart: unless-stopped
+    ports:
+      - "8084:80"
+    depends_on:
+      - backend
+    networks:
+      - xlflow_net
+    mem_limit: 128m
+
+networks:
+  xlflow_net:
+    driver: bridge
+
+volumes:
+  db_data:
+    name: xlflow_db_data
